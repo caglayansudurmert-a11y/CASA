@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mavi Dünya - İnteraktif Saat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;500;700&display=swap');
+        
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Rajdhani', sans-serif;
+            background-color: #0f172a; /* Çok koyu mavi arka plan */
+            color: white;
+        }
+
+        /* Özel Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #3b82f6; 
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #f97316; 
+        }
+
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        .glow-text {
+            text-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+        }
+
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none; /* Küreyi döndürebilmek için */
+        }
+
+        .interactive {
+            pointer-events: auto;
+        }
+
+        .country-item:hover {
+            background: linear-gradient(90deg, rgba(59,130,246,0.2) 0%, rgba(0,0,0,0) 100%);
+            border-left: 3px solid #f97316; /* Turuncu */
+        }
+
+        .country-item.active {
+            background: linear-gradient(90deg, rgba(34,197,94,0.2) 0%, rgba(0,0,0,0) 100%);
+            border-left: 3px solid #22c55e; /* Yeşil */
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 3D Sahne Alanı -->
+    <div id="canvas-container"></div>
+
+    <!-- Arayüz Katmanı -->
+    <div id="ui-layer" class="flex flex-col justify-between p-4 md:p-8">
+        
+        <!-- Üst Başlık ve Bilgi -->
+        <header class="flex justify-between items-start w-full interactive">
+            <div>
+                <h1 class="text-4xl font-bold tracking-wider text-white glow-text">KRONOS <span class="text-blue-500">DÜNYA</span></h1>
+                <p class="text-blue-200 text-sm mt-1">İnteraktif Zaman Takip Sistemi</p>
+            </div>
+            <div class="text-right hidden md:block">
+                <div class="text-xs text-gray-400">SİSTEM DURUMU</div>
+                <div class="flex items-center justify-end gap-2">
+                    <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                    <span class="text-green-400 font-bold">ÇEVRİMİÇİ</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Orta Ana Saat -->
+        <main class="flex flex-col items-center justify-center flex-grow pointer-events-none">
+            <div class="text-center interactive transition-all duration-500" id="main-clock-container">
+                <h2 id="selected-country-name" class="text-2xl md:text-3xl text-orange-500 font-bold tracking-widest mb-2 uppercase">YEREL SAAT</h2>
+                <div id="main-clock" class="text-6xl md:text-9xl font-bold text-white tracking-tighter leading-none drop-shadow-2xl select-none">
+                    00:00:00
+                </div>
+                <div class="mt-4 flex items-center justify-center gap-4">
+                    <span id="date-display" class="text-lg md:text-xl text-blue-300 border border-blue-500/30 px-4 py-1 rounded-full glass-panel">
+                        Yükleniyor...
+                    </span>
+                    <span id="time-status" class="text-lg md:text-xl text-white px-4 py-1 rounded-full font-bold bg-blue-600/50 border border-blue-400/50">
+                        --
+                    </span>
+                </div>
+            </div>
+        </main>
+
+        <!-- Alt/Yan Panel: Ülke Listesi -->
+        <div class="absolute bottom-0 right-0 md:top-24 md:bottom-8 md:right-8 w-full md:w-80 glass-panel rounded-t-2xl md:rounded-2xl overflow-hidden flex flex-col interactive transition-transform duration-300 transform translate-y-0">
+            
+            <!-- Arama Çubuğu -->
+            <div class="p-4 border-b border-gray-700 bg-gray-900/50">
+                <div class="relative">
+                    <input type="text" id="search-input" placeholder="Ülke veya Şehir Ara..." 
+                        class="w-full bg-gray-800 text-white border border-blue-500/30 rounded-lg py-2 px-4 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 placeholder-gray-500 transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 absolute right-3 top-2.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Liste -->
+            <div id="country-list" class="overflow-y-auto h-64 md:h-full p-2 space-y-1 scroll-smooth">
+                <!-- JavaScript ile doldurulacak -->
+            </div>
+            
+            <!-- Alt Bilgi -->
+            <div class="p-2 text-center text-xs text-gray-500 bg-gray-900/80">
+                <span class="text-orange-500">●</span> Öğle 
+                <span class="text-blue-500 ml-2">●</span> Akşam 
+                <span class="text-green-500 ml-2">●</span> Sabah
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- VERİ YAPISI ---
+        // Örnek veriler. Gerçek uygulamada API veya daha geniş bir JSON kullanılabilir.
+        // Lat/Lon değerleri Three.js'de kamerayı döndürmek için kullanılacak.
+        const countries = [
+            { name: "Türkiye (İstanbul)", tz: "Europe/Istanbul", lat: 41.0082, lon: 28.9784 },
+            { name: "ABD (New York)", tz: "America/New_York", lat: 40.7128, lon: -74.0060 },
+            { name: "İngiltere (Londra)", tz: "Europe/London", lat: 51.5074, lon: -0.1278 },
+            { name: "Japonya (Tokyo)", tz: "Asia/Tokyo", lat: 35.6762, lon: 139.6503 },
+            { name: "Avustralya (Sidney)", tz: "Australia/Sydney", lat: -33.8688, lon: 151.2093 },
+            { name: "Almanya (Berlin)", tz: "Europe/Berlin", lat: 52.5200, lon: 13.4050 },
+            { name: "Rusya (Moskova)", tz: "Europe/Moscow", lat: 55.7558, lon: 37.6173 },
+            { name: "Çin (Pekin)", tz: "Asia/Shanghai", lat: 39.9042, lon: 116.4074 },
+            { name: "Brezilya (Sao Paulo)", tz: "America/Sao_Paulo", lat: -23.5505, lon: -46.6333 },
+            { name: "Hindistan (Yeni Delhi)", tz: "Asia/Kolkata", lat: 28.6139, lon: 77.2090 },
+            { name: "Güney Kore (Seul)", tz: "Asia/Seoul", lat: 37.5665, lon: 126.9780 },
+            { name: "Mısır (Kahire)", tz: "Africa/Cairo", lat: 30.0444, lon: 31.2357 },
+            { name: "Fransa (Paris)", tz: "Europe/Paris", lat: 48.8566, lon: 2.3522 },
+            { name: "Dubai (BAE)", tz: "Asia/Dubai", lat: 25.2048, lon: 55.2708 },
+            { name: "Kanada (Toronto)", tz: "America/Toronto", lat: 43.6532, lon: -79.3832 },
+            { name: "Meksika (Mexico City)", tz: "America/Mexico_City", lat: 19.4326, lon: -99.1332 },
+            { name: "Singapur", tz: "Asia/Singapore", lat: 1.3521, lon: 103.8198 },
+            { name: "İtalya (Roma)", tz: "Europe/Rome", lat: 41.9028, lon: 12.4964 },
+            { name: "İspanya (Madrid)", tz: "Europe/Madrid", lat: 40.4168, lon: -3.7038 },
+            { name: "Güney Afrika (Cape Town)", tz: "Africa/Johannesburg", lat: -33.9249, lon: 18.4241 },
+             { name: "Azerbaycan (Bakü)", tz: "Asia/Baku", lat: 40.4093, lon: 49.8671 },
+        ];
+
+        // Varsayılan Seçim (Türkiye)
+        let selectedCountry = countries[0];
+
+        // --- THREE.JS DÜNYA KÜRESİ ---
+        const scene = new THREE.Scene();
+        // Arka plan rengi (Saydamlık için CSS kullanılır ama sis efekti için renk veriyoruz)
+        scene.fog = new THREE.FogExp2(0x0f172a, 0.02);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 18;
+        camera.position.y = 5;
+
+        const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        // Dünya Grubu
+        const earthGroup = new THREE.Group();
+        scene.add(earthGroup);
+
+        // 1. Ana Küre (Okyanuslar - Mavi)
+        const geometry = new THREE.IcosahedronGeometry(5, 2); // Low-poly wireframe estetiği için segmenti düşük tuttum, arttırılabilir.
+        const material = new THREE.MeshBasicMaterial({
+            color: 0x1e3a8a, // Koyu Mavi
+            wireframe: true,
+            transparent: true,
+            opacity: 0.3
+        });
+        const earth = new THREE.Mesh(geometry, material);
+        earthGroup.add(earth);
+
+        // 2. İç Küre (Daha koyu, dolgunluk vermesi için)
+        const coreGeo = new THREE.IcosahedronGeometry(4.95, 2);
+        const coreMat = new THREE.MeshBasicMaterial({
+            color: 0x0f172a,
+            transparent: true,
+            opacity: 0.9
+        });
+        const earthCore = new THREE.Mesh(coreGeo, coreMat);
+        earthGroup.add(earthCore);
+
+        // 3. Noktalar (Yıldız gibi görünüm veya şehirler)
+        const particlesGeo = new THREE.BufferGeometry();
+        const particleCount = 800;
+        const posArray = new Float32Array(particleCount * 3);
+        
+        for(let i = 0; i < particleCount * 3; i++) {
+            posArray[i] = (Math.random() - 0.5) * 12; // Kürenin etrafına saçılmış
+        }
+        // Küre yüzeyine noktalar koymak için daha düzenli bir algoritma
+        // Burada basitçe atmosfer efekti için rastgele koyuyoruz
+        
+        // İşaretleyici (Marker) - Seçilen ülke için
+        const markerGeometry = new THREE.RingGeometry(0.1, 0.15, 32);
+        const markerMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0xf97316, // Turuncu
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.8
+        });
+        const marker = new THREE.Mesh(markerGeometry, markerMaterial);
+        // Marker'a bir de ışık hüzmesi ekleyelim
+        const glowGeo = new THREE.SphereGeometry(0.08, 16, 16);
+        const glowMat = new THREE.MeshBasicMaterial({ color: 0x22c55e }); // Yeşil çekirdek
+        const glowMesh = new THREE.Mesh(glowGeo, glowMat);
+        marker.add(glowMesh);
+
+        marker.position.set(0, 0, 5); // Başlangıç konumu
+        marker.lookAt(0,0,0);
+        earthGroup.add(marker);
+
+        // Işıklar
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+        const pointLight = new THREE.PointLight(0x3b82f6, 1);
+        pointLight.position.set(10, 10, 10);
+        scene.add(pointLight);
+
+        // --- FONKSİYONLAR ---
+
+        // Lat/Lon'u 3D Vektöre çevir
+        function calcPosFromLatLonRad(lat, lon, radius) {
+            const phi = (90 - lat) * (Math.PI / 180);
+            const theta = (lon + 180) * (Math.PI / 180);
+            const x = -(radius * Math.sin(phi) * Math.cos(theta));
+            const z = (radius * Math.sin(phi) * Math.sin(theta));
+            const y = (radius * Math.cos(phi));
+            return new THREE.Vector3(x, y, z);
+        }
+
+        // Hedef rotasyon (Animasyon için)
+        let targetRotation = { x: 0, y: 0 };
+
+        function focusOnCountry(country) {
+            // Marker konumunu güncelle
+            const pos = calcPosFromLatLonRad(country.lat, country.lon, 5.05);
+            marker.position.copy(pos);
+            marker.lookAt(0, 0, 0);
+            
+            // Marker rengini saate göre değiştir (Görsel efekt)
+            // Sabah: Yeşil, Akşam: Turuncu, Gece: Beyaz
+            const status = getTimeStatus(country.tz).status;
+            if(status === 'SABAH') {
+                markerMaterial.color.setHex(0x22c55e); // Yeşil
+                glowMesh.material.color.setHex(0xffffff);
+            } else if (status === 'ÖĞLE') {
+                markerMaterial.color.setHex(0xf97316); // Turuncu
+                glowMesh.material.color.setHex(0xffff00);
+            } else {
+                markerMaterial.color.setHex(0x3b82f6); // Mavi
+                glowMesh.material.color.setHex(0xffffff);
+            }
+
+            // Dünyayı döndür (Kamerayı değil, dünyayı döndürmek daha kolay kontrol sağlar)
+            // Hedef lat/lon'un tam tersine döndürmeliyiz ki o nokta kameraya (z eksenine) gelsin
+            const targetLat = country.lat * (Math.PI / 180);
+            const targetLon = -country.lon * (Math.PI / 180);
+
+            // Basit hedef atama (Tween/Animasyon döngüde yapılacak)
+            targetRotation.x = targetLat;
+            targetRotation.y = targetLon;
+        }
+
+        // Saat ve Durum Hesaplama
+        function getTimeStatus(timezone) {
+            try {
+                const now = new Date();
+                const options = { timeZone: timezone, hour12: false, hour: 'numeric', minute: 'numeric', second: 'numeric', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
+                const formatter = new Intl.DateTimeFormat('tr-TR', options);
+                const parts = formatter.formatToParts(now);
+                
+                const timeString = parts.find(p => p.type === 'hour').value + ":" + 
+                                   parts.find(p => p.type === 'minute').value + ":" + 
+                                   parts.find(p => p.type === 'second').value;
+                
+                const dateString = parts.find(p => p.type === 'day').value + " " +
+                                   parts.find(p => p.type === 'month').value + " " +
+                                   parts.find(p => p.type === 'year').value;
+
+                const hour = parseInt(parts.find(p => p.type === 'hour').value);
+                
+                let status = "GECE";
+                let colorClass = "text-gray-300"; // Beyazımsı
+                let statusColor = "bg-gray-600";
+
+                if (hour >= 6 && hour < 12) {
+                    status = "SABAH";
+                    colorClass = "text-green-400";
+                    statusColor = "bg-green-600";
+                } else if (hour >= 12 && hour < 17) {
+                    status = "ÖĞLE";
+                    colorClass = "text-orange-400";
+                    statusColor = "bg-orange-500";
+                } else if (hour >= 17 && hour < 22) {
+                    status = "AKŞAM";
+                    colorClass = "text-blue-400";
+                    statusColor = "bg-blue-600";
+                }
+
+                return { time: timeString, date: dateString, status: status, color: colorClass, bg: statusColor, hour: hour };
+            } catch (e) {
+                return { time: "--:--:--", date: "", status: "HATA", color: "text-red-500", bg: "bg-red-500", hour: 0 };
+            }
+        }
+
+        // --- ARAYÜZ FONKSİYONLARI ---
+
+        function updateClock() {
+            const data = getTimeStatus(selectedCountry.tz);
+            
+            const clockEl = document.getElementById('main-clock');
+            const dateEl = document.getElementById('date-display');
+            const statusEl = document.getElementById('time-status');
+            const nameEl = document.getElementById('selected-country-name');
+
+            clockEl.innerText = data.time;
+            dateEl.innerText = data.date;
+            nameEl.innerText = selectedCountry.name;
+            
+            statusEl.innerText = data.status;
+            statusEl.className = `text-sm md:text-xl text-white px-4 py-1 rounded-full font-bold shadow-lg border border-white/20 transition-colors duration-500 ${data.bg}`;
+            
+            // Listeyi güncelle (Canlı saatler)
+            updateListTimes();
+        }
+
+        function renderList(filter = "") {
+            const listEl = document.getElementById('country-list');
+            listEl.innerHTML = "";
+
+            countries.filter(c => c.name.toLowerCase().includes(filter.toLowerCase())).forEach(country => {
+                const data = getTimeStatus(country.tz);
+                
+                const div = document.createElement('div');
+                div.className = `country-item p-3 rounded-lg cursor-pointer flex justify-between items-center transition-all border-l-2 border-transparent ${selectedCountry.name === country.name ? 'bg-white/10 active' : 'bg-white/5'}`;
+                
+                // Renk belirteci (duruma göre)
+                let dotColor = "bg-gray-400";
+                if(data.status === "SABAH") dotColor = "bg-green-500";
+                if(data.status === "ÖĞLE") dotColor = "bg-orange-500";
+                if(data.status === "AKŞAM") dotColor = "bg-blue-500";
+
+                div.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="w-2 h-2 rounded-full ${dotColor} shadow-[0_0_8px_rgba(255,255,255,0.5)]"></div>
+                        <div>
+                            <div class="font-bold text-sm text-gray-100">${country.name}</div>
+                            <div class="text-xs text-gray-400">${data.status}</div>
+                        </div>
+                    </div>
+                    <div class="font-mono text-lg text-blue-200 font-bold tracking-wider time-val" data-tz="${country.tz}">
+                        ${data.time.substring(0, 5)}
+                    </div>
+                `;
+
+                div.onclick = () => {
+                    selectedCountry = country;
+                    renderList(document.getElementById('search-input').value); // Seçili sınıfını güncellemek için
+                    focusOnCountry(country);
+                };
+
+                listEl.appendChild(div);
+            });
+        }
+
+        function updateListTimes() {
+            const times = document.querySelectorAll('.time-val');
+            times.forEach(el => {
+                const tz = el.getAttribute('data-tz');
+                const data = getTimeStatus(tz);
+                el.innerText = data.time.substring(0, 5);
+            });
+        }
+
+        document.getElementById('search-input').addEventListener('input', (e) => {
+            renderList(e.target.value);
+        });
+
+        // --- BAŞLATMA ve DÖNGÜ ---
+
+        function init() {
+            renderList();
+            focusOnCountry(selectedCountry);
+            setInterval(updateClock, 1000);
+            updateClock();
+        }
+
+        // Animasyon Döngüsü
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Dünyayı Sürekli Yavaşça Döndür (Eğer mouse ile etkileşim yoksa)
+            // Ancak biz hedef ülkeye yumuşak geçiş istiyoruz:
+            
+            // Lineer interpolasyon (Lerp) ile yumuşak dönüş
+            // Three.js rotasyonları Euler açılarıdır.
+            // Hedef Lat/Lon'a göre Group rotasyonunu ayarlıyoruz.
+            
+            // Hedef dönüş hesaplaması biraz basitleştirilmiştir.
+            // Gerçek bir uygulamada Quaternion Slerp kullanılır ama burada Euler yeterli.
+            
+            // Hedeflenen rotasyonu Y ekseninde uygula (Boylam)
+            // X ekseni enlem için (hafif tilt)
+            
+            const targetRotY = targetRotation.y + Math.PI / 2; // Ofset
+            const targetRotX = targetRotation.x;
+
+            // Yumuşak geçiş (Easing)
+            earthGroup.rotation.y += (targetRotY - earthGroup.rotation.y) * 0.05;
+            earthGroup.rotation.x += (targetRotX - earthGroup.rotation.x) * 0.05;
+
+            // Atmosfer/Wireframe Animasyonu
+            earth.rotation.y += 0.001; // Tel kafes kendi içinde de dönsün
+            
+            // Marker animasyonu (Nefes alma efekti)
+            const scale = 1 + Math.sin(Date.now() * 0.005) * 0.2;
+            marker.scale.set(scale, scale, scale);
+
+            renderer.render(scene, camera);
+        }
+
+        // Pencere Boyutlandırma
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        init();
+        animate();
+
+    </script>
+</body>
+</html>
