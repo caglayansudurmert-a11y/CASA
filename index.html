@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mavi Dünya - İnteraktif Saat</title>
+    <title>Kronos - Küresel Takip</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
@@ -13,458 +13,526 @@
             margin: 0;
             overflow: hidden;
             font-family: 'Rajdhani', sans-serif;
-            background-color: #0f172a; /* Çok koyu mavi arka plan */
+            background-color: #020617;
             color: white;
         }
 
-        /* Özel Scrollbar */
-        ::-webkit-scrollbar {
-            width: 6px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #1e293b; 
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #3b82f6; 
-            border-radius: 3px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #f97316; 
-        }
-
-        .glass-panel {
-            background: rgba(15, 23, 42, 0.7);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-        }
-
-        .glow-text {
-            text-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
-        }
-
-        #canvas-container {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 0;
-        }
-
+        /* UI Katmanı */
         #ui-layer {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            inset: 0;
             z-index: 10;
-            pointer-events: none; /* Küreyi döndürebilmek için */
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
         }
 
-        .interactive {
-            pointer-events: auto;
+        .interactive { pointer-events: auto; }
+
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
         }
 
+        .glow-text { text-shadow: 0 0 20px rgba(59, 130, 246, 0.6); }
+
+        .country-item {
+            transition: all 0.3s ease;
+            border-left: 3px solid transparent;
+        }
         .country-item:hover {
-            background: linear-gradient(90deg, rgba(59,130,246,0.2) 0%, rgba(0,0,0,0) 100%);
-            border-left: 3px solid #f97316; /* Turuncu */
+            background: rgba(59, 130, 246, 0.1);
+            border-left-color: #f97316;
+            padding-left: 1rem;
+        }
+        .country-item.active {
+            background: linear-gradient(90deg, rgba(34,197,94,0.15) 0%, transparent 100%);
+            border-left-color: #22c55e;
         }
 
-        .country-item.active {
-            background: linear-gradient(90deg, rgba(34,197,94,0.2) 0%, rgba(0,0,0,0) 100%);
-            border-left: 3px solid #22c55e; /* Yeşil */
+        /* Alarm Animasyonu */
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { box-shadow: 0 0 0 20px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
         }
+        .alarm-active {
+            animation: pulse-red 1.5s infinite;
+            border-color: #ef4444 !important;
+            background-color: #1f0505;
+        }
+        
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #3b82f6; border-radius: 3px; }
     </style>
 </head>
 <body>
 
-    <!-- 3D Sahne Alanı -->
-    <div id="canvas-container"></div>
+    <!-- 3D Canvas -->
+    <div id="canvas-container" class="absolute inset-0 z-0 bg-gradient-to-b from-[#020617] to-[#0f172a]"></div>
 
-    <!-- Arayüz Katmanı -->
-    <div id="ui-layer" class="flex flex-col justify-between p-4 md:p-8">
+    <!-- UI -->
+    <div id="ui-layer" class="p-6 md:p-8">
         
-        <!-- Üst Başlık ve Bilgi -->
-        <header class="flex justify-between items-start w-full interactive">
+        <!-- Header -->
+        <header class="flex justify-between items-start w-full interactive z-20">
             <div>
-                <h1 class="text-4xl font-bold tracking-wider text-white glow-text">KRONOS <span class="text-blue-500">DÜNYA</span></h1>
-                <p class="text-blue-200 text-sm mt-1">İnteraktif Zaman Takip Sistemi</p>
+                <h1 class="text-5xl font-bold tracking-widest text-white glow-text">KRONOS</h1>
+                <div class="h-1 w-20 bg-blue-500 mt-1 rounded-full"></div>
+                <p class="text-blue-300 text-xs mt-1 uppercase tracking-[0.3em]">Zaman & Alarm Sistemi</p>
             </div>
-            <div class="text-right hidden md:block">
-                <div class="text-xs text-gray-400">SİSTEM DURUMU</div>
-                <div class="flex items-center justify-end gap-2">
-                    <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                    <span class="text-green-400 font-bold">ÇEVRİMİÇİ</span>
-                </div>
+            <div class="text-right">
+                <button onclick="toggleReminderList()" class="interactive group flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 transition-all">
+                    <div class="relative">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-400 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                        </svg>
+                        <span id="alarm-badge" class="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full hidden"></span>
+                    </div>
+                    <span class="text-sm font-bold text-gray-300 group-hover:text-white">ALARMLAR</span>
+                </button>
             </div>
         </header>
 
-        <!-- Orta Ana Saat -->
-        <main class="flex flex-col items-center justify-center flex-grow pointer-events-none">
-            <div class="text-center interactive transition-all duration-500" id="main-clock-container">
-                <h2 id="selected-country-name" class="text-2xl md:text-3xl text-orange-500 font-bold tracking-widest mb-2 uppercase">YEREL SAAT</h2>
-                <div id="main-clock" class="text-6xl md:text-9xl font-bold text-white tracking-tighter leading-none drop-shadow-2xl select-none">
-                    00:00:00
+        <!-- Ana Saat -->
+        <main class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full text-center pointer-events-none z-10">
+            <div class="transition-all duration-700" id="main-clock-container">
+                
+                <div class="flex flex-col items-center justify-center gap-2 mb-4 interactive">
+                    <div class="flex items-center gap-3 bg-black/40 px-6 py-2 rounded-full backdrop-blur-md border border-white/10 shadow-2xl cursor-pointer hover:border-blue-500/50 transition-all group" onclick="openSetReminderModal()">
+                        <img id="selected-country-flag" src="" class="w-8 h-auto rounded shadow-sm hidden">
+                        <h2 id="selected-country-name" class="text-xl md:text-3xl text-white font-bold tracking-widest uppercase">YÜKLENİYOR</h2>
+                        <div class="w-8 h-8 bg-blue-600/20 rounded-full flex items-center justify-center group-hover:bg-blue-600 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                            </svg>
+                        </div>
+                    </div>
                 </div>
-                <div class="mt-4 flex items-center justify-center gap-4">
-                    <span id="date-display" class="text-lg md:text-xl text-blue-300 border border-blue-500/30 px-4 py-1 rounded-full glass-panel">
-                        Yükleniyor...
-                    </span>
-                    <span id="time-status" class="text-lg md:text-xl text-white px-4 py-1 rounded-full font-bold bg-blue-600/50 border border-blue-400/50">
-                        --
-                    </span>
+                
+                <div id="main-clock" class="text-8xl md:text-[10rem] font-bold text-white tracking-tighter leading-none drop-shadow-[0_0_60px_rgba(59,130,246,0.3)] select-none tabular-nums">
+                    00:00
+                </div>
+
+                <div class="mt-6 flex items-center justify-center gap-4">
+                    <span id="date-display" class="text-blue-200 bg-blue-900/20 border border-blue-500/20 px-4 py-1 rounded backdrop-blur-sm">...</span>
                 </div>
             </div>
         </main>
 
-        <!-- Alt/Yan Panel: Ülke Listesi -->
-        <div class="absolute bottom-0 right-0 md:top-24 md:bottom-8 md:right-8 w-full md:w-80 glass-panel rounded-t-2xl md:rounded-2xl overflow-hidden flex flex-col interactive transition-transform duration-300 transform translate-y-0">
+        <!-- Liste -->
+        <div class="absolute bottom-6 right-6 w-full max-w-sm glass-panel rounded-2xl overflow-hidden flex flex-col interactive shadow-2xl max-h-[40vh]">
+            <div class="p-3 border-b border-white/10 bg-black/20">
+                <input type="text" id="search-input" placeholder="Ülke Ara..." class="w-full bg-transparent text-white border-none focus:ring-0 placeholder-gray-500 text-sm">
+            </div>
+            <div id="country-list" class="overflow-y-auto p-2 space-y-1 custom-scroll"></div>
+        </div>
+    </div>
+
+    <!-- ALARM MODALI -->
+    <div id="reminder-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm hidden interactive">
+        <div class="bg-[#0f172a] border border-blue-500/30 p-8 rounded-2xl w-full max-w-md shadow-2xl transform scale-100">
+            <h3 class="text-2xl font-bold text-white mb-1">Alarm Kur</h3>
+            <p class="text-blue-400 text-xs mb-6 uppercase tracking-wider" id="modal-subtitle">...</p>
             
-            <!-- Arama Çubuğu -->
-            <div class="p-4 border-b border-gray-700 bg-gray-900/50">
-                <div class="relative">
-                    <input type="text" id="search-input" placeholder="Ülke veya Şehir Ara..." 
-                        class="w-full bg-gray-800 text-white border border-blue-500/30 rounded-lg py-2 px-4 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 placeholder-gray-500 transition-all">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 absolute right-3 top-2.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
+            <div class="space-y-4">
+                <div class="bg-blue-900/20 p-4 rounded border border-blue-500/20">
+                    <label class="block text-blue-300 text-xs mb-1 font-bold">HEDEF SAAT (Seçilen Ülkenin Saati)</label>
+                    <input type="datetime-local" id="reminder-time" class="w-full bg-gray-900 text-white p-3 rounded border border-gray-700 focus:border-blue-500 outline-none">
+                </div>
+                
+                <div>
+                    <label class="block text-gray-400 text-xs mb-1">NOT</label>
+                    <input type="text" id="reminder-note" placeholder="Hatırlatıcı notu..." class="w-full bg-gray-900 text-white p-3 rounded border border-gray-700 outline-none">
                 </div>
             </div>
 
-            <!-- Liste -->
-            <div id="country-list" class="overflow-y-auto h-64 md:h-full p-2 space-y-1 scroll-smooth">
-                <!-- JavaScript ile doldurulacak -->
-            </div>
-            
-            <!-- Alt Bilgi -->
-            <div class="p-2 text-center text-xs text-gray-500 bg-gray-900/80">
-                <span class="text-orange-500">●</span> Öğle 
-                <span class="text-blue-500 ml-2">●</span> Akşam 
-                <span class="text-green-500 ml-2">●</span> Sabah
+            <div class="flex justify-between items-center mt-8">
+                <button onclick="testNotification()" class="text-xs text-blue-400 hover:text-blue-300 underline">Bildirimleri Test Et</button>
+                <div class="flex gap-3">
+                    <button onclick="closeModal('reminder-modal')" class="px-4 py-2 text-gray-400 hover:text-white">İptal</button>
+                    <button onclick="saveReminder()" class="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold shadow-lg transition-all">Alarmı Kur</button>
+                </div>
             </div>
         </div>
     </div>
 
+    <!-- ALARM ÇALMA EKRANI (Overlay) -->
+    <div id="alarm-overlay" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-xl hidden interactive">
+        <div class="text-center alarm-active p-10 rounded-3xl shadow-[0_0_100px_rgba(239,68,68,0.8)] max-w-lg w-full border-2 border-red-500 relative overflow-hidden">
+            
+            <div class="absolute inset-0 bg-red-500/10 animate-pulse"></div>
+            
+            <div class="relative z-10">
+                <div class="w-24 h-24 bg-red-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg animate-bounce">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                
+                <h2 class="text-4xl font-bold text-white mb-2 tracking-tighter">ALARM!</h2>
+                <p class="text-red-300 text-sm uppercase tracking-[0.3em] mb-8" id="alarm-country-title">TÜRKİYE</p>
+                
+                <div class="bg-black/40 p-6 rounded-xl mb-8 text-left border border-white/10">
+                    <p class="text-gray-500 text-xs font-bold mb-2">NOTUNUZ:</p>
+                    <p class="text-white text-xl font-medium leading-relaxed" id="alarm-note-display">...</p>
+                </div>
+
+                <button onclick="dismissAlarm()" class="w-full py-4 bg-white text-black hover:bg-gray-200 rounded-xl font-bold text-lg shadow-xl transition-transform active:scale-95">
+                    ALARMI KAPAT
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- LİSTE MODALI -->
+    <div id="list-modal" class="fixed inset-0 z-40 flex items-center justify-center bg-black/80 hidden interactive">
+        <div class="bg-gray-900 border border-gray-700 p-6 rounded-2xl w-full max-w-lg h-[50vh] flex flex-col">
+            <div class="flex justify-between items-center mb-4 border-b border-gray-800 pb-4">
+                <h3 class="text-xl font-bold text-white">Aktif Alarmlar</h3>
+                <button onclick="toggleReminderList()" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+            </div>
+            <div id="active-reminders-list" class="overflow-y-auto flex-1 space-y-2"></div>
+        </div>
+    </div>
+
     <script>
-        // --- VERİ YAPISI ---
-        // Örnek veriler. Gerçek uygulamada API veya daha geniş bir JSON kullanılabilir.
-        // Lat/Lon değerleri Three.js'de kamerayı döndürmek için kullanılacak.
+        // --- DATA ---
         const countries = [
-            { name: "Türkiye (İstanbul)", tz: "Europe/Istanbul", lat: 41.0082, lon: 28.9784 },
-            { name: "ABD (New York)", tz: "America/New_York", lat: 40.7128, lon: -74.0060 },
-            { name: "İngiltere (Londra)", tz: "Europe/London", lat: 51.5074, lon: -0.1278 },
-            { name: "Japonya (Tokyo)", tz: "Asia/Tokyo", lat: 35.6762, lon: 139.6503 },
-            { name: "Avustralya (Sidney)", tz: "Australia/Sydney", lat: -33.8688, lon: 151.2093 },
-            { name: "Almanya (Berlin)", tz: "Europe/Berlin", lat: 52.5200, lon: 13.4050 },
-            { name: "Rusya (Moskova)", tz: "Europe/Moscow", lat: 55.7558, lon: 37.6173 },
-            { name: "Çin (Pekin)", tz: "Asia/Shanghai", lat: 39.9042, lon: 116.4074 },
-            { name: "Brezilya (Sao Paulo)", tz: "America/Sao_Paulo", lat: -23.5505, lon: -46.6333 },
-            { name: "Hindistan (Yeni Delhi)", tz: "Asia/Kolkata", lat: 28.6139, lon: 77.2090 },
-            { name: "Güney Kore (Seul)", tz: "Asia/Seoul", lat: 37.5665, lon: 126.9780 },
-            { name: "Mısır (Kahire)", tz: "Africa/Cairo", lat: 30.0444, lon: 31.2357 },
-            { name: "Fransa (Paris)", tz: "Europe/Paris", lat: 48.8566, lon: 2.3522 },
-            { name: "Dubai (BAE)", tz: "Asia/Dubai", lat: 25.2048, lon: 55.2708 },
-            { name: "Kanada (Toronto)", tz: "America/Toronto", lat: 43.6532, lon: -79.3832 },
-            { name: "Meksika (Mexico City)", tz: "America/Mexico_City", lat: 19.4326, lon: -99.1332 },
-            { name: "Singapur", tz: "Asia/Singapore", lat: 1.3521, lon: 103.8198 },
-            { name: "İtalya (Roma)", tz: "Europe/Rome", lat: 41.9028, lon: 12.4964 },
-            { name: "İspanya (Madrid)", tz: "Europe/Madrid", lat: 40.4168, lon: -3.7038 },
-            { name: "Güney Afrika (Cape Town)", tz: "Africa/Johannesburg", lat: -33.9249, lon: 18.4241 },
-             { name: "Azerbaycan (Bakü)", tz: "Asia/Baku", lat: 40.4093, lon: 49.8671 },
+            { name: "Türkiye (İstanbul)", tz: "Europe/Istanbul", lat: 41.0082, lon: 28.9784, code: "tr" },
+            { name: "ABD (New York)", tz: "America/New_York", lat: 40.7128, lon: -74.0060, code: "us" },
+            { name: "Japonya (Tokyo)", tz: "Asia/Tokyo", lat: 35.6762, lon: 139.6503, code: "jp" },
+            { name: "Almanya (Berlin)", tz: "Europe/Berlin", lat: 52.5200, lon: 13.4050, code: "de" },
+            { name: "İngiltere (Londra)", tz: "Europe/London", lat: 51.5074, lon: -0.1278, code: "gb" },
+            { name: "Rusya (Moskova)", tz: "Europe/Moscow", lat: 55.7558, lon: 37.6173, code: "ru" },
+            { name: "Çin (Pekin)", tz: "Asia/Shanghai", lat: 39.9042, lon: 116.4074, code: "cn" },
+            { name: "Azerbaycan", tz: "Asia/Baku", lat: 40.4093, lon: 49.8671, code: "az" },
+            { name: "Fransa", tz: "Europe/Paris", lat: 48.8566, lon: 2.3522, code: "fr" },
+            { name: "Güney Kore", tz: "Asia/Seoul", lat: 37.5665, lon: 126.9780, code: "kr" },
+            { name: "Hindistan", tz: "Asia/Kolkata", lat: 28.6139, lon: 77.2090, code: "in" },
+            { name: "Brezilya", tz: "America/Sao_Paulo", lat: -23.5505, lon: -46.6333, code: "br" },
+            { name: "Avustralya", tz: "Australia/Sydney", lat: -33.8688, lon: 151.2093, code: "au" },
+            { name: "İtalya", tz: "Europe/Rome", lat: 41.9028, lon: 12.4964, code: "it" },
+            { name: "Kanada (Toronto)", tz: "America/Toronto", lat: 43.6532, lon: -79.3832, code: "ca" }
         ];
 
-        // Varsayılan Seçim (Türkiye)
         let selectedCountry = countries[0];
+        let reminders = JSON.parse(localStorage.getItem('kronos_reminders')) || [];
+        let activeAlarm = null;
+        let titleInterval = null; // Başlık yanıp sönmesi için
 
-        // --- THREE.JS DÜNYA KÜRESİ ---
+        // --- THREE.JS ---
         const scene = new THREE.Scene();
-        // Arka plan rengi (Saydamlık için CSS kullanılır ama sis efekti için renk veriyoruz)
-        scene.fog = new THREE.FogExp2(0x0f172a, 0.02);
-
-        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.z = 18;
-        camera.position.y = 5;
+        scene.fog = new THREE.FogExp2(0x020617, 0.02);
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
+        camera.position.z = 16;
 
         const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
         document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-        // Dünya Grubu
         const earthGroup = new THREE.Group();
         scene.add(earthGroup);
 
-        // 1. Ana Küre (Okyanuslar - Mavi)
-        const geometry = new THREE.IcosahedronGeometry(5, 2); // Low-poly wireframe estetiği için segmenti düşük tuttum, arttırılabilir.
-        const material = new THREE.MeshBasicMaterial({
-            color: 0x1e3a8a, // Koyu Mavi
-            wireframe: true,
-            transparent: true,
-            opacity: 0.3
-        });
-        const earth = new THREE.Mesh(geometry, material);
-        earthGroup.add(earth);
-
-        // 2. İç Küre (Daha koyu, dolgunluk vermesi için)
-        const coreGeo = new THREE.IcosahedronGeometry(4.95, 2);
-        const coreMat = new THREE.MeshBasicMaterial({
-            color: 0x0f172a,
-            transparent: true,
-            opacity: 0.9
-        });
-        const earthCore = new THREE.Mesh(coreGeo, coreMat);
-        earthGroup.add(earthCore);
-
-        // 3. Noktalar (Yıldız gibi görünüm veya şehirler)
-        const particlesGeo = new THREE.BufferGeometry();
-        const particleCount = 800;
-        const posArray = new Float32Array(particleCount * 3);
+        // Küre
+        const geometry = new THREE.IcosahedronGeometry(5, 3);
+        const wireMat = new THREE.MeshBasicMaterial({ color: 0x1e40af, wireframe: true, transparent: true, opacity: 0.1 });
+        earthGroup.add(new THREE.Mesh(geometry, wireMat));
         
-        for(let i = 0; i < particleCount * 3; i++) {
-            posArray[i] = (Math.random() - 0.5) * 12; // Kürenin etrafına saçılmış
-        }
-        // Küre yüzeyine noktalar koymak için daha düzenli bir algoritma
-        // Burada basitçe atmosfer efekti için rastgele koyuyoruz
+        const pointsMat = new THREE.PointsMaterial({ color: 0x60a5fa, size: 0.06, transparent: true, opacity: 0.4 });
+        earthGroup.add(new THREE.Points(geometry, pointsMat));
+
+        const coreMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+        earthGroup.add(new THREE.Mesh(new THREE.SphereGeometry(4.95, 32, 32), coreMat));
+
+        const markerGroup = new THREE.Group();
+        earthGroup.add(markerGroup);
         
-        // İşaretleyici (Marker) - Seçilen ülke için
-        const markerGeometry = new THREE.RingGeometry(0.1, 0.15, 32);
-        const markerMaterial = new THREE.MeshBasicMaterial({ 
-            color: 0xf97316, // Turuncu
-            side: THREE.DoubleSide,
-            transparent: true,
-            opacity: 0.8
-        });
-        const marker = new THREE.Mesh(markerGeometry, markerMaterial);
-        // Marker'a bir de ışık hüzmesi ekleyelim
-        const glowGeo = new THREE.SphereGeometry(0.08, 16, 16);
-        const glowMat = new THREE.MeshBasicMaterial({ color: 0x22c55e }); // Yeşil çekirdek
-        const glowMesh = new THREE.Mesh(glowGeo, glowMat);
-        marker.add(glowMesh);
+        const ringMat = new THREE.MeshBasicMaterial({ color: 0xf97316, side: THREE.DoubleSide, transparent: true, opacity: 0.8 });
+        const ring = new THREE.Mesh(new THREE.RingGeometry(0.15, 0.2, 32), ringMat);
+        ring.position.z = 5.05;
+        markerGroup.add(ring);
 
-        marker.position.set(0, 0, 5); // Başlangıç konumu
-        marker.lookAt(0,0,0);
-        earthGroup.add(marker);
+        const dot = new THREE.Mesh(new THREE.CircleGeometry(0.1, 32), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+        dot.position.z = 5.05;
+        markerGroup.add(dot);
 
-        // Işıklar
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-        scene.add(ambientLight);
-        const pointLight = new THREE.PointLight(0x3b82f6, 1);
-        pointLight.position.set(10, 10, 10);
-        scene.add(pointLight);
+        const starGeo = new THREE.BufferGeometry();
+        const starPos = new Float32Array(2000 * 3);
+        for(let i=0; i<6000; i++) starPos[i] = (Math.random() - 0.5) * 100;
+        starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+        scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.1, transparent: true, opacity: 0.5 })));
 
-        // --- FONKSİYONLAR ---
+        // --- BİLDİRİM YÖNETİMİ ---
 
-        // Lat/Lon'u 3D Vektöre çevir
-        function calcPosFromLatLonRad(lat, lon, radius) {
-            const phi = (90 - lat) * (Math.PI / 180);
-            const theta = (lon + 180) * (Math.PI / 180);
-            const x = -(radius * Math.sin(phi) * Math.cos(theta));
-            const z = (radius * Math.sin(phi) * Math.sin(theta));
-            const y = (radius * Math.cos(phi));
-            return new THREE.Vector3(x, y, z);
-        }
-
-        // Hedef rotasyon (Animasyon için)
-        let targetRotation = { x: 0, y: 0 };
-
-        function focusOnCountry(country) {
-            // Marker konumunu güncelle
-            const pos = calcPosFromLatLonRad(country.lat, country.lon, 5.05);
-            marker.position.copy(pos);
-            marker.lookAt(0, 0, 0);
-            
-            // Marker rengini saate göre değiştir (Görsel efekt)
-            // Sabah: Yeşil, Akşam: Turuncu, Gece: Beyaz
-            const status = getTimeStatus(country.tz).status;
-            if(status === 'SABAH') {
-                markerMaterial.color.setHex(0x22c55e); // Yeşil
-                glowMesh.material.color.setHex(0xffffff);
-            } else if (status === 'ÖĞLE') {
-                markerMaterial.color.setHex(0xf97316); // Turuncu
-                glowMesh.material.color.setHex(0xffff00);
-            } else {
-                markerMaterial.color.setHex(0x3b82f6); // Mavi
-                glowMesh.material.color.setHex(0xffffff);
+        function requestNotificationPermission() {
+            if (!("Notification" in window)) {
+                alert("Tarayıcınız bildirimleri desteklemiyor.");
+                return;
             }
-
-            // Dünyayı döndür (Kamerayı değil, dünyayı döndürmek daha kolay kontrol sağlar)
-            // Hedef lat/lon'un tam tersine döndürmeliyiz ki o nokta kameraya (z eksenine) gelsin
-            const targetLat = country.lat * (Math.PI / 180);
-            const targetLon = -country.lon * (Math.PI / 180);
-
-            // Basit hedef atama (Tween/Animasyon döngüde yapılacak)
-            targetRotation.x = targetLat;
-            targetRotation.y = targetLon;
-        }
-
-        // Saat ve Durum Hesaplama
-        function getTimeStatus(timezone) {
-            try {
-                const now = new Date();
-                const options = { timeZone: timezone, hour12: false, hour: 'numeric', minute: 'numeric', second: 'numeric', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
-                const formatter = new Intl.DateTimeFormat('tr-TR', options);
-                const parts = formatter.formatToParts(now);
-                
-                const timeString = parts.find(p => p.type === 'hour').value + ":" + 
-                                   parts.find(p => p.type === 'minute').value + ":" + 
-                                   parts.find(p => p.type === 'second').value;
-                
-                const dateString = parts.find(p => p.type === 'day').value + " " +
-                                   parts.find(p => p.type === 'month').value + " " +
-                                   parts.find(p => p.type === 'year').value;
-
-                const hour = parseInt(parts.find(p => p.type === 'hour').value);
-                
-                let status = "GECE";
-                let colorClass = "text-gray-300"; // Beyazımsı
-                let statusColor = "bg-gray-600";
-
-                if (hour >= 6 && hour < 12) {
-                    status = "SABAH";
-                    colorClass = "text-green-400";
-                    statusColor = "bg-green-600";
-                } else if (hour >= 12 && hour < 17) {
-                    status = "ÖĞLE";
-                    colorClass = "text-orange-400";
-                    statusColor = "bg-orange-500";
-                } else if (hour >= 17 && hour < 22) {
-                    status = "AKŞAM";
-                    colorClass = "text-blue-400";
-                    statusColor = "bg-blue-600";
+            Notification.requestPermission().then(permission => {
+                if (permission !== "granted") {
+                    console.log("Bildirim izni verilmedi.");
                 }
+            });
+        }
 
-                return { time: timeString, date: dateString, status: status, color: colorClass, bg: statusColor, hour: hour };
-            } catch (e) {
-                return { time: "--:--:--", date: "", status: "HATA", color: "text-red-500", bg: "bg-red-500", hour: 0 };
+        // Sayfa yüklendiğinde ve tıklamalarda izin iste
+        document.addEventListener('DOMContentLoaded', requestNotificationPermission);
+
+        function testNotification() {
+            if (Notification.permission === "granted") {
+                new Notification("Test Başarılı!", {
+                    body: "Kronos bildirimleri düzgün çalışıyor.",
+                    icon: "https://flagcdn.com/w80/tr.png"
+                });
+            } else if (Notification.permission !== "denied") {
+                Notification.requestPermission().then(permission => {
+                    if (permission === "granted") {
+                        new Notification("Test Başarılı!", { body: "İzin verildi ve çalışıyor." });
+                    }
+                });
+            } else {
+                alert("Bildirim izni engellenmiş. Tarayıcı ayarlarından (adres çubuğundaki kilit simgesi) izin vermelisiniz.");
             }
         }
 
-        // --- ARAYÜZ FONKSİYONLARI ---
+        function openSetReminderModal() {
+            // İzin kontrolü
+            requestNotificationPermission();
 
-        function updateClock() {
-            const data = getTimeStatus(selectedCountry.tz);
+            const now = new Date();
+            const parts = new Intl.DateTimeFormat('en-CA', {
+                timeZone: selectedCountry.tz,
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', hour12: false
+            }).formatToParts(now);
             
-            const clockEl = document.getElementById('main-clock');
-            const dateEl = document.getElementById('date-display');
-            const statusEl = document.getElementById('time-status');
-            const nameEl = document.getElementById('selected-country-name');
-
-            clockEl.innerText = data.time;
-            dateEl.innerText = data.date;
-            nameEl.innerText = selectedCountry.name;
+            const val = `${parts[0].value}-${parts[2].value}-${parts[4].value}T${parts[6].value}:${parts[8].value}`;
             
-            statusEl.innerText = data.status;
-            statusEl.className = `text-sm md:text-xl text-white px-4 py-1 rounded-full font-bold shadow-lg border border-white/20 transition-colors duration-500 ${data.bg}`;
-            
-            // Listeyi güncelle (Canlı saatler)
-            updateListTimes();
+            document.getElementById('reminder-time').value = val;
+            document.getElementById('modal-subtitle').innerText = selectedCountry.name;
+            document.getElementById('reminder-modal').classList.remove('hidden');
         }
 
-        function renderList(filter = "") {
-            const listEl = document.getElementById('country-list');
-            listEl.innerHTML = "";
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+        }
 
-            countries.filter(c => c.name.toLowerCase().includes(filter.toLowerCase())).forEach(country => {
-                const data = getTimeStatus(country.tz);
-                
-                const div = document.createElement('div');
-                div.className = `country-item p-3 rounded-lg cursor-pointer flex justify-between items-center transition-all border-l-2 border-transparent ${selectedCountry.name === country.name ? 'bg-white/10 active' : 'bg-white/5'}`;
-                
-                // Renk belirteci (duruma göre)
-                let dotColor = "bg-gray-400";
-                if(data.status === "SABAH") dotColor = "bg-green-500";
-                if(data.status === "ÖĞLE") dotColor = "bg-orange-500";
-                if(data.status === "AKŞAM") dotColor = "bg-blue-500";
+        function saveReminder() {
+            const timeInput = document.getElementById('reminder-time').value;
+            const note = document.getElementById('reminder-note').value;
+            
+            if(!timeInput) return alert("Lütfen saat seçin.");
 
-                div.innerHTML = `
-                    <div class="flex items-center gap-3">
-                        <div class="w-2 h-2 rounded-full ${dotColor} shadow-[0_0_8px_rgba(255,255,255,0.5)]"></div>
+            const targetDateLocal = new Date(timeInput);
+            const now = new Date();
+            const localParts = new Intl.DateTimeFormat('en-CA', {
+                timeZone: selectedCountry.tz,
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+            }).formatToParts(now);
+            
+            const currentCountryTimeStr = `${localParts[0].value}-${localParts[2].value}-${localParts[4].value}T${localParts[6].value}:${localParts[8].value}:${localParts[10].value}`;
+            const currentCountryDate = new Date(currentCountryTimeStr);
+            
+            const diff = targetDateLocal.getTime() - currentCountryDate.getTime();
+            
+            if(diff < 0) return alert("İleri bir saat seçmelisiniz.");
+
+            const realTargetTime = Date.now() + diff;
+
+            reminders.push({
+                id: Date.now(),
+                country: selectedCountry.name,
+                code: selectedCountry.code,
+                targetTime: realTargetTime,
+                displayTime: timeInput.replace('T', ' '),
+                note: note || "Not Yok"
+            });
+
+            localStorage.setItem('kronos_reminders', JSON.stringify(reminders));
+            closeModal('reminder-modal');
+            updateBadge();
+            
+            // Kullanıcıya onay bildirimi
+            if(Notification.permission === "granted") {
+                new Notification("Alarm Kuruldu", { body: `${selectedCountry.name} için alarm aktif.` });
+            }
+        }
+
+        function checkReminders() {
+            const now = Date.now();
+            reminders.forEach((rem, index) => {
+                if (now >= rem.targetTime && !activeAlarm) {
+                    triggerAlarm(rem);
+                }
+            });
+        }
+
+        function triggerAlarm(rem) {
+            activeAlarm = rem;
+            flashTitle("🔔 ALARM! 🔔", "KRONOS");
+
+            if(Notification.permission === "granted") {
+                try {
+                    const notif = new Notification(`ALARM: ${rem.country}`, {
+                        body: rem.note,
+                        icon: `https://flagcdn.com/w80/${rem.code}.png`,
+                        requireInteraction: true
+                    });
+                    notif.onclick = function() { 
+                        window.focus(); 
+                        notif.close(); 
+                    };
+                } catch(e) { console.log("Bildirim hatası:", e); }
+            }
+
+            document.getElementById('alarm-country-title').innerText = rem.country;
+            document.getElementById('alarm-note-display').innerText = rem.note;
+            document.getElementById('alarm-overlay').classList.remove('hidden');
+
+            reminders = reminders.filter(r => r.id !== rem.id);
+            localStorage.setItem('kronos_reminders', JSON.stringify(reminders));
+            updateBadge();
+        }
+
+        function dismissAlarm() {
+            document.getElementById('alarm-overlay').classList.add('hidden');
+            activeAlarm = null;
+            stopTitleFlash();
+        }
+
+        function flashTitle(msg1, msg2) {
+            if(titleInterval) clearInterval(titleInterval);
+            let state = false;
+            titleInterval = setInterval(() => {
+                document.title = state ? msg1 : msg2;
+                state = !state;
+            }, 1000);
+        }
+
+        function stopTitleFlash() {
+            if(titleInterval) clearInterval(titleInterval);
+            document.title = "Kronos - Küresel Takip";
+        }
+
+        function toggleReminderList() {
+            const el = document.getElementById('list-modal');
+            if(el.classList.contains('hidden')) {
+                renderReminders();
+                el.classList.remove('hidden');
+            } else {
+                el.classList.add('hidden');
+            }
+        }
+
+        function renderReminders() {
+            const list = document.getElementById('active-reminders-list');
+            list.innerHTML = "";
+            if(reminders.length === 0) list.innerHTML = "<p class='text-gray-500 text-center mt-10'>Aktif alarm yok.</p>";
+            
+            reminders.sort((a,b) => a.targetTime - b.targetTime).forEach(r => {
+                const minLeft = Math.ceil((r.targetTime - Date.now())/60000);
+                list.innerHTML += `
+                    <div class="bg-gray-800 p-3 rounded flex justify-between items-center border border-gray-700">
                         <div>
-                            <div class="font-bold text-sm text-gray-100">${country.name}</div>
-                            <div class="text-xs text-gray-400">${data.status}</div>
+                            <div class="font-bold text-orange-400">${r.country}</div>
+                            <div class="text-xs text-gray-400">${r.displayTime} (${minLeft} dk kaldı)</div>
+                            <div class="text-sm text-white">${r.note}</div>
                         </div>
-                    </div>
-                    <div class="font-mono text-lg text-blue-200 font-bold tracking-wider time-val" data-tz="${country.tz}">
-                        ${data.time.substring(0, 5)}
+                        <button onclick="deleteReminder(${r.id})" class="text-red-500 hover:text-red-300 font-bold text-xl">&times;</button>
                     </div>
                 `;
-
-                div.onclick = () => {
-                    selectedCountry = country;
-                    renderList(document.getElementById('search-input').value); // Seçili sınıfını güncellemek için
-                    focusOnCountry(country);
-                };
-
-                listEl.appendChild(div);
             });
         }
 
-        function updateListTimes() {
-            const times = document.querySelectorAll('.time-val');
-            times.forEach(el => {
-                const tz = el.getAttribute('data-tz');
-                const data = getTimeStatus(tz);
-                el.innerText = data.time.substring(0, 5);
+        function deleteReminder(id) {
+            reminders = reminders.filter(r => r.id !== id);
+            localStorage.setItem('kronos_reminders', JSON.stringify(reminders));
+            renderReminders();
+            updateBadge();
+        }
+
+        function updateBadge() {
+            const badge = document.getElementById('alarm-badge');
+            if(reminders.length > 0) badge.classList.remove('hidden');
+            else badge.classList.add('hidden');
+        }
+
+        function updateTime() {
+            checkReminders();
+            const now = new Date();
+            const options = { timeZone: selectedCountry.tz, hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' };
+            try {
+                const timeStr = new Intl.DateTimeFormat('tr-TR', options).format(now);
+                document.getElementById('main-clock').innerText = timeStr;
+                const dateStr = new Intl.DateTimeFormat('tr-TR', { timeZone: selectedCountry.tz, day:'numeric', month:'long', weekday:'long'}).format(now);
+                document.getElementById('date-display').innerText = dateStr;
+                document.getElementById('selected-country-name').innerText = selectedCountry.name;
+                const flag = document.getElementById('selected-country-flag');
+                flag.src = `https://flagcdn.com/w80/${selectedCountry.code}.png`;
+                flag.classList.remove('hidden');
+            } catch(e) {}
+        }
+
+        let targetRot = { x:0, y:0 };
+        function focusCountry(c) {
+            selectedCountry = c;
+            updateTime();
+            targetRot.x = c.lat * (Math.PI/180);
+            targetRot.y = -c.lon * (Math.PI/180);
+            const phi = (90 - c.lat) * (Math.PI/180);
+            const theta = (c.lon + 180) * (Math.PI/180);
+            const x = -(5 * Math.sin(phi) * Math.cos(theta));
+            const z = (5 * Math.sin(phi) * Math.sin(theta));
+            const y = (5 * Math.cos(phi));
+            markerGroup.position.set(0,0,0);
+            markerGroup.lookAt(x,y,z);
+        }
+
+        function renderList(search="") {
+            const list = document.getElementById('country-list');
+            list.innerHTML = "";
+            countries.filter(c => c.name.toLowerCase().includes(search.toLowerCase())).forEach(c => {
+                const active = c.name === selectedCountry.name ? 'active' : '';
+                list.innerHTML += `
+                    <div onclick="focusCountry(countries.find(x=>x.code=='${c.code}'))" class="country-item p-3 cursor-pointer flex items-center gap-3 ${active}">
+                        <img src="https://flagcdn.com/w40/${c.code}.png" class="w-6 rounded shadow opacity-80">
+                        <div class="text-sm font-bold text-gray-300">${c.name.split('(')[0]}</div>
+                    </div>
+                `;
             });
         }
 
-        document.getElementById('search-input').addEventListener('input', (e) => {
-            renderList(e.target.value);
-        });
-
-        // --- BAŞLATMA ve DÖNGÜ ---
-
-        function init() {
-            renderList();
-            focusOnCountry(selectedCountry);
-            setInterval(updateClock, 1000);
-            updateClock();
-        }
-
-        // Animasyon Döngüsü
         function animate() {
             requestAnimationFrame(animate);
-
-            // Dünyayı Sürekli Yavaşça Döndür (Eğer mouse ile etkileşim yoksa)
-            // Ancak biz hedef ülkeye yumuşak geçiş istiyoruz:
-            
-            // Lineer interpolasyon (Lerp) ile yumuşak dönüş
-            // Three.js rotasyonları Euler açılarıdır.
-            // Hedef Lat/Lon'a göre Group rotasyonunu ayarlıyoruz.
-            
-            // Hedef dönüş hesaplaması biraz basitleştirilmiştir.
-            // Gerçek bir uygulamada Quaternion Slerp kullanılır ama burada Euler yeterli.
-            
-            // Hedeflenen rotasyonu Y ekseninde uygula (Boylam)
-            // X ekseni enlem için (hafif tilt)
-            
-            const targetRotY = targetRotation.y + Math.PI / 2; // Ofset
-            const targetRotX = targetRotation.x;
-
-            // Yumuşak geçiş (Easing)
-            earthGroup.rotation.y += (targetRotY - earthGroup.rotation.y) * 0.05;
-            earthGroup.rotation.x += (targetRotX - earthGroup.rotation.x) * 0.05;
-
-            // Atmosfer/Wireframe Animasyonu
-            earth.rotation.y += 0.001; // Tel kafes kendi içinde de dönsün
-            
-            // Marker animasyonu (Nefes alma efekti)
-            const scale = 1 + Math.sin(Date.now() * 0.005) * 0.2;
-            marker.scale.set(scale, scale, scale);
-
+            const targetY = targetRot.y + Math.PI/2;
+            earthGroup.rotation.y += (targetY - earthGroup.rotation.y) * 0.05;
+            earthGroup.rotation.x += (targetRot.x - earthGroup.rotation.x) * 0.05;
+            scene.rotation.y += 0.0002;
             renderer.render(scene, camera);
         }
 
-        // Pencere Boyutlandırma
         window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.aspect = window.innerWidth/window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
-        init();
+        document.getElementById('search-input').addEventListener('input', (e) => renderList(e.target.value));
+
+        focusCountry(countries[0]);
+        renderList();
+        updateBadge();
         animate();
+        setInterval(updateTime, 1000);
 
     </script>
 </body>
